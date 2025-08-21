@@ -16,6 +16,7 @@ import sys
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import the new English variable names from the config file
 from config import WATCH_FOLDER, OUTPUT_CSV, HOME_ALTITUDE
 from gps.exif import get_exif_data, get_lat_lon_alt
 from gps.calculator import pixel_to_gps

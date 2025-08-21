@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 
 """
@@ -12,6 +13,8 @@ import os
 
 # Add the config.py directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import the new English variable names from the config file
 from config import (
     RED_LOWER_1, RED_UPPER_1, RED_LOWER_2, RED_UPPER_2,
     BLUE_LOWER, BLUE_UPPER, MORPHOLOGICAL_KERNEL,

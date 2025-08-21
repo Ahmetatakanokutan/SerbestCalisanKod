@@ -30,8 +30,9 @@ import argparse
 # Add the project root directory to Python's import path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from config import CIKTI_CSV, IZLENECEK_KLASOR
-from file_watcher.watcher import resim_isleyici_worker, klasor_izleyici, is_kuyrugu
+# Import the new English variable names from the config file
+from config import OUTPUT_CSV, WATCH_FOLDER
+from file_watcher.watcher import image_processing_worker, folder_watcher, job_queue
 from video_processor import start_video_stream
 
 def prepare_system():
@@ -40,17 +41,17 @@ def prepare_system():
     This is especially required for 'folder' mode.
     """
     # Create the directory for the output CSV file
-    os.makedirs(os.path.dirname(CIKTI_CSV), exist_ok=True)
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
     
     # Create the image watch folder
-    os.makedirs(IZLENECEK_KLASOR, exist_ok=True)
+    os.makedirs(WATCH_FOLDER, exist_ok=True)
 
     # If the CSV file is empty or doesn't exist, write the header row
-    if not os.path.exists(CIKTI_CSV) or os.stat(CIKTI_CSV).st_size == 0:
-        with open(CIKTI_CSV, "w", newline="", encoding='utf-8') as f:
+    if not os.path.exists(OUTPUT_CSV) or os.stat(OUTPUT_CSV).st_size == 0:
+        with open(OUTPUT_CSV, "w", newline="", encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(["timestamp", "filename", "type", "color", "latitude", "longitude"])
-        print(f"[INFO] Output file created with header: {CIKTI_CSV}")
+        print(f"[INFO] Output file created with header: {OUTPUT_CSV}")
 
 def main():
     """
@@ -83,15 +84,15 @@ def main():
         # FOLDER WATCHER MODE
         prepare_system()
         
-        worker_thread = threading.Thread(target=resim_isleyici_worker, daemon=True)
+        worker_thread = threading.Thread(target=image_processing_worker, daemon=True)
         worker_thread.start()
         print("[INFO] Background image processor (worker) started.")
 
         try:
-            klasor_izleyici()
+            folder_watcher()
         except KeyboardInterrupt:
             print("\n[STOPPING] User interruption detected...")
-            is_kuyrugu.put(None)
+            job_queue.put(None)
             worker_thread.join(timeout=5)
             print("[SHUTDOWN] Program terminated successfully.")
         
