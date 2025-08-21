@@ -1,10 +1,5 @@
-# -*- coding: utf-8 -*-
-
-"""
-Canlı video akışını (webcam veya video dosyası) işleyen modül.
-Her bir karede kırmızı üçgen ve mavi altıgen tespiti yapar ve
-sonuçları gerçek zamanlı olarak ekranda gösterir.
-"""
+# -*- coding: utf-8 -*-\n\n"""
+Canlı video akışını (webcam veya video dosyası) işleyen modül.\nHer bir karede kırmızı üçgen ve mavi altıgen tespiti yapar ve\nsonuçları gerçek zamanlı olarak ekranda gösterir.\n"""
 
 import cv2
 import sys
@@ -47,7 +42,9 @@ def video_akisini_baslat(kaynak=0):
     Args:
         kaynak (int or str): Kamera indeksi (örn: 0) veya video dosyasının yolu.
     """
-    cap = cv2.VideoCapture(kaynak)
+    # Linux sistemlerde daha kararlı çalışması için V4L2 backend'ini özellikle belirtiyoruz.
+    cap = cv2.VideoCapture(kaynak, cv2.CAP_V4L2)
+    
     if not cap.isOpened():
         print(f"[HATA] Video kaynağı açılamadı: {kaynak}")
         print("Lütfen kamera bağlantınızı veya dosya yolunu kontrol edin.")

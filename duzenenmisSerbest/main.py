@@ -14,8 +14,11 @@ Bu betik, tüm sistemi başlatan ana giriş noktasıdır.
 # Klasör izleme modunda çalıştırmak için:
 python main.py --mod folder
 
-# Canlı webcam modunda çalıştırmak için:
+# Canlı webcam modunda çalıştırmak için (varsayılan kamera 0):
 python main.py --mod webcam
+
+# Belirli bir kamerayı seçmek için (örneğin /dev/video19):
+python main.py --mod webcam --camera_index 19
 """
 
 import os
@@ -65,6 +68,12 @@ def main():
         required=True,
         help="Çalışma modunu seçin: 'folder' (klasör izleme) veya 'webcam' (canlı video)."
     )
+    parser.add_argument(
+        '--camera_index',
+        type=int,
+        default=0,
+        help="Webcam modu için kullanılacak kamera indeksi (örn: 0, 1, 19)."
+    )
     args = parser.parse_args()
 
     print("="*50)
@@ -89,11 +98,15 @@ def main():
         
     elif args.mod == 'webcam':
         # CANLI VIDEO MODU
+        print(f"[BİLGİ] Kamera indeksi {args.camera_index} kullanılıyor.")
         try:
-            # Varsayılan kamera (indeks 0) ile video akışını başlat
-            video_akisini_baslat(kaynak=0)
+            # Seçilen kamera indeksi ile video akışını başlat
+            video_akisini_baslat(kaynak=args.camera_index)
         except KeyboardInterrupt:
             print("\n[DURDURULUYOR] Kullanıcı tarafından işlem kesildi...")
             print("[KAPATILDI] Program başarıyla sonlandırıldı.")
 
     print("="*50)
+
+if __name__ == "__main__":
+    main()
