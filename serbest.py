@@ -431,17 +431,41 @@ class VideoProcessor:
                 'latitude', 'longitude', 'confidence'
             ])
     
-    def process_video_stream(self):
-        """Video akışını işler"""
-        if self.source_type == 'webcam':
-            cap = cv2.VideoCapture(0)
-        elif self.source_type == 'video':
-            cap = cv2.VideoCapture(self.source_path)
-        else:
-            print(f"Geçersiz kaynak tipi: {self.source_type}")
-            return
-        
-        print("Video işleme başladı. Çıkmak için 'q' tuşuna basın.")
+        # VideoProcessor sınıfı içindeki process_video_stream metodu
+
+        def process_video_stream(self):
+            """Video akışını işler"""
+            # ESKİ KOD:
+            # if self.source_type == 'webcam':
+            #     cap = cv2.VideoCapture(0)
+
+            # YENİ KOD:
+            if self.source_type == 'webcam':
+                # Raspberry Pi'nin libcamera altyapısı için GStreamer pipeline'ı
+                gst_pipeline = (
+                    "libcamerasrc ! "
+                    "video/x-raw, width=640, height=480, framerate=30/1 ! "
+                    "videoconvert ! "
+                    "videoscale ! "
+                    "appsink"
+                )
+                # OpenCV'ye GStreamer'ı kullanmasını söylüyoruz
+                cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+
+            elif self.source_type == 'video':
+                cap = cv2.VideoCapture(self.source_path)
+            else:
+                print(f"Geçersiz kaynak tipi: {self.source_type}")
+                return
+
+            if not cap.isOpened():
+                print("Hata: Kamera veya video akışı başlatılamadı.")
+                print("Lütfen kameranın doğru bağlandığından ve GStreamer'ın yüklü olduğundan emin olun.")
+                return
+
+            print("Video işleme başladı. Çıkmak için 'q' tuşuna basın.")
+            
+            # ... metodun geri kalanı aynı ...
         
         while True:
             ret, frame = cap.read()
