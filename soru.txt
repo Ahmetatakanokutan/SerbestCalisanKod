@@ -1,0 +1,113 @@
+bu klasordeki tum dosyalari dikkatlice ve en ince ayrintisina kadar incele bilgi olarak da ilk olarak click.py su ise yarar Bu Python kodu, coğrafi konum bilgisi (GPS verisi) içeren bir fotoğrafta tıkladığınız bir noktanın gerçek dünyadaki GPS koordinatlarını (enlem ve boylam) hesaplayan bir araçtır. Özellikle bir drone ile çekilmiş hava fotoğrafları üzerinde belirli nesneleri veya konumları etiketlemek için tasarlanmıştır.
+
+Adım Adım Ne Yaptığı
+Resmi Yükler: Komut satırından belirttiğiniz fotoğraf dosyasını (IMG_0122.jpg gibi) açar.
+
+GPS Verisini Okur: Fotoğrafın EXIF meta verilerinden, fotoğrafın çekildiği andaki dronun veya kameranın kendi GPS konumunu (enlem, boylam ve irtifa) alır.
+
+Resmi Gösterir: Fotoğrafı ekranda bir pencerede görüntüler, böylece üzerine tıklayabilirsiniz.
+
+Tıklamayı Bekler: Siz resim üzerinde herhangi bir yere fare ile tıkladığınızda on_click fonksiyonu tetiklenir.
+
+Koordinatları Hesaplar: Tıkladığınız pikselin konumunu (x, y), dronun GPS konumu, yüksekliği ve kameranın görüş açısı gibi bilgilerle birleştirerek karmaşık bir matematiksel hesaplama (pixel_to_gps fonksiyonu) yapar. Bu hesaplama sonucunda, tıkladığınız pikselin yeryüzündeki gerçek enlem ve boylamını bulur.
+
+Etiket Sorar: Koordinatlar hesaplandıktan sonra, size tıkladığınız şeyin ne olduğunu soran küçük bir pencere açar (örneğin "ağaç", "araba", "bina" vb.).
+
+Dosyaya Kaydeder: Hesaplanan GPS koordinatlarını ve girdiğiniz etiketi, files/detections/clicked_coordinates.csv adlı bir CSV dosyasına yeni bir satır olarak ekler.     coordinate_calculator ise su ise yarar  Bu kod, önceki örneklerin çok daha gelişmiş ve tamamen otomatikleştirilmiş bir versiyonudur. Belirli bir klasörü sürekli olarak gözetler ve bu klasöre yeni bir fotoğraf eklendiğinde, fotoğraf üzerindeki nesneleri (insan, araba vb.) yapay zeka ile tespit edip her bir nesnenin gerçek dünya GPS koordinatını hesaplar ve sonuçları bir CSV dosyasına otomatik olarak kaydeder. 🔥
+
+Nasıl Çalışır? (Adım Adım İş Akışı)
+Bu kodun çalışma mantığı iki ana parçadan oluşur: Bir "gözetleyici" ve bir "işleyici".
+
+Gözetleme (Ana Döngü):
+
+Program başladığında, ./files/images klasörünü sürekli olarak izlemeye başlar.
+
+Bu klasöre .jpg uzantılı yeni bir resim dosyası eklendiğini fark ettiği anda, bu dosyanın yolunu bir "iş kuyruğuna" (image_queue) ekler.
+
+İşleme (Arka Plan İşçisi - Worker Thread):
+
+Programla birlikte arka planda ayrı bir "işçi" (image_worker) çalışmaya başlar. Bu işçinin tek görevi, iş kuyruğunu dinlemektir.
+
+Kuyruğa yeni bir resim dosyası eklendiğinde, işçi bu dosyayı alır ve aşağıdaki işlemleri sırayla yapar:
+
+GPS Verisini Okur: Fotoğrafın EXIF verilerinden çekildiği anki drone konumunu (enlem, boylam, irtifa) okur.
+
+Görüntüyü Böler: Büyük fotoğrafı daha küçük parçalara (kodda 8x12'lik bir ızgaraya) böler. Bu, büyük resimlerde nesne tespitini daha verimli hale getirir.
+
+Nesneleri Tespit Eder (YOLO): Her bir küçük parça üzerinde yolo12x.pt adlı yapay zeka modelini çalıştırarak "insan", "araba", "tekne" gibi nesneleri arar.
+
+Koordinatları Hesaplar: Tespit ettiği her nesnenin merkez pikselini bulur ve pixel_to_gps fonksiyonunu kullanarak bu pikselin yeryüzündeki gerçek GPS koordinatını (enlem, boylam) hesaplar.
+
+Sonuçları Kaydeder: Bulduğu tüm nesnelerin bilgilerini (sınıf, tespit güveni, enlem, boylam) ./files/detections/detections.csv dosyasına yeni satırlar olarak ekler.
+
+Bu yapı sayesinde program, bir yandan yeni fotoğrafları ararken diğer yandan ağır olan görüntü işleme görevini arka planda yürütebilir. Bu, sistemin donmadan akıcı bir şekilde çalışmasını sağlar.
+
+Kullanılan Ana Teknolojiler
+YOLO (You Only Look Once): Görüntülerdeki nesneleri çok hızlı bir şekilde tespit etmek için kullanılan popüler ve güçlü bir yapay zeka modelidir.
+
+Multithreading (threading & queue): Programın aynı anda birden fazla iş yapmasını sağlar. Ana döngü klasörü gözetlerken, "işçi thread" arka planda resim işleme gibi ağır bir görevi yerine getirir. Bu, verimliliği artırır ve programın donmasını engeller.
+
+GPS Hesaplama (pixel_to_gps): Drone'un konumu, yüksekliği ve kamera açısı gibi verileri kullanarak görüntüdeki bir pikselin yerdeki coğrafi karşılığını bulan matematiksel fonksiyondur.
+
+image_operations.py dosyasi da su ise yarar Bu kod, bir görüntü veya video karesi içindeki geometrik şekilleri (özellikle üçgenleri) tespit etmek için tasarlanmış bir bilgisayarlı görü (computer vision) modülüdür. 📐
+
+Bu dosya, tek başına çalışan bir programdan ziyade, diğer programların import ederek kullanabileceği bir araç kutusu (kütüphane) görevi görür. İçinde farklı görüntü işleme görevleri için sınıflar ve yardımcı fonksiyonlar barındırır.
+
+Detaylı Olarak Ne Yapar?
+Kodun yapısı birkaç ana bölümden oluşur:
+
+1. Yardımcı Fonksiyonlar
+Bunlar, geometrik hesaplamalar yapan küçük ve temel araçlardır:
+
+calculate_centroid: Bir konturun (şeklin dış hattı) geometrik merkezini hesaplar.
+
+line_intersection: İki çizginin matematiksel olarak kesiştiği noktayı bulur.
+
+are_line_endpoints_close: İki çizginin uç noktalarının birbirine yeterince yakın olup olmadığını kontrol eder. Bu, çizgilerin aynı şekle ait olup olmadığını anlamaya yardımcı olur.
+
+side_length: İki nokta arasındaki mesafeyi (bir kenarın uzunluğunu) hesaplar.
+
+2. Ana Sınıflar (Classes)
+Kodun ana işlevselliği bu sınıflarda toplanmıştır:
+
+ImageProcessor (Görüntü İşleyici):
+Bu, temel bir sınıftır. Ana işlevi, bir videodaki hareketli nesneleri cv2.createBackgroundSubtractorMOG2() kullanarak algılamak ve bu nesnelerin merkezine yeşil bir daire çizmektir. Genel amaçlı bir hareket dedektörü olarak düşünülebilir.
+
+TriangleDetector (Üçgen Dedektörü):
+Bu, kodun en önemli ve en gelişmiş kısmıdır. Bir görüntüdeki üçgenleri bulmaya odaklanır. Bunu yapmak için karmaşık bir dizi işlem uygular:
+
+Ön İşleme: Görüntüyü alır, yeniden boyutlandırır, GaussianBlur ile pürüzsüzleştirir ve gri tonlamalı hale getirir.
+
+Kenar Tespiti: Canny kenar tespiti algoritmasıyla görüntüdeki belirgin kenarları bir haritaya dönüştürür.
+
+Çizgi Bulma: Hough Line Transform algoritmasını kullanarak bu kenar haritası üzerindeki tüm düz çizgileri tespit eder.
+
+Kombinasyonları Test Etme: Tespit edilen tüm çizgileri alır ve üçerli kombinasyonlar halinde gruplar. Bu, "acaba bu üç çizgi bir üçgen oluşturur mu?" sorusunu sormak gibidir.
+
+Doğrulama (_forms_triangle): Her üçlü çizgi grubunun gerçekten bir üçgen oluşturup oluşturmadığını sıkı kurallarla kontrol eder:
+
+Üç çizginin de birbirini kestiğinden emin olur.
+
+Çizgilerin uç noktalarının birbirine yakın olduğunu doğrular.
+
+Kenar uzunluklarının birbirine yakın olup olmadığını kontrol ederek neredeyse eşkenar bir üçgen arar.
+
+Merkez Noktayı Bulma: Geçerli bir veya daha fazla üçgen bulursa, bu üçgenlerin merkez noktasını (centroid) hesaplar ve bu noktayı geri döndürür.
+
+HexagonDetector (Altıgen Dedektörü):
+Bu sınıf, gelecekte altıgen tespiti eklenmesi amacıyla oluşturulmuş, ancak henüz tamamlanmamış bir taslaktır. Yapısı TriangleDetector'a benzer ancak altı çizginin kombinasyonlarını kontrol etmesi gerekir.       test_camera_serbest.py ise su sekildedir          Bu kod, bir video kaynağından (bilgisayarın kamerası veya bir ağ akışı) anlık olarak görüntü alıp bu görüntüdeki üçgen şekillerini tespit eden bir programdır. Tespit ettiği her üçgenin merkez koordinatlarını da ekrana yazdırır.
+
+Adım Adım Ne Yapar?
+Video Kaynağını Alır: Programı çalıştırırken ona bir "bağlantı dizesi" (connection_string) verirsiniz. Bu, videonun nereden alınacağını söyler. 'webcam' derseniz bilgisayarın kamerasını, 'gstreamer:<port>' derseniz belirtilen porttaki bir ağ akışını kullanır.
+
+Video Akışını Başlatır: VideoRetriever adlı bir nesne oluşturarak belirtilen kaynaktan video akışını almaya başlar.
+
+Kare Kare İşler: Video akışından gelen her bir fotoğraf karesini (frame) tek tek bir döngü içinde ele alır.
+
+Üçgen Arar: Her bir karenin üzerinde, TriangleDetector adlı nesneyi kullanarak üçgen olup olmadığını kontrol eder. Bu nesne, görüntü işleme teknikleri kullanarak üçgenleri bulmak için tasarlanmıştır.
+
+Sonucu Yazdırır: Eğer bir üçgen bulursa, bu üçgenin merkez noktasının (centroid) koordinatlarını terminale yazdırır. Örneğin: Triangle detected at: [(250, 150)] gibi bir çıktı verir. Eğer bir karede üçgen bulamazsa hiçbir şey yapmadan sonraki kareye geçer.
+
+Kaynakları Serbest Bırakır: Program kapatıldığında veya bir hata oluştuğunda, video kaynağını düzgün bir şekilde kapatır (retriever.release()).
+
+dedigim gibi bu kodlari cok dikkatlice incele. bu kodlarda sadece ucgen deteect edilmiyor ayrica altigen de detect ediliyor. daha dogrusu kirmizi ucgen ile mavi altigen detect ediyor. bu kodlari birlestirerek bir yapi olustur. bu yapiyi da calisacakhal isminde bir dosyaya yaz
