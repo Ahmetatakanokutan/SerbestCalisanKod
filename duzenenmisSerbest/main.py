@@ -1,23 +1,23 @@
 # -*- coding: utf-8 -*- 
 
 """
-Kırmızı Üçgen ve Mavi Altıgen Tespit Sistemi - Ana Başlatıcı
+Red Triangle and Blue Hexagon Detection System - Main Starter
 
-Bu betik, tüm sistemi başlatan ana giriş noktasıdır.
-İki farklı modda çalışabilir:
-1. 'folder': Belirtilen bir klasörü yeni resimler için izler,
-             GPS verilerini okur ve sonuçları CSV'ye kaydeder.
-2. 'webcam': Bilgisayarın varsayılan kamerasından canlı video akışı alır,
-             şekilleri tespit eder ve ekranda gerçek zamanlı gösterir.
+This script is the main entry point that starts the entire system.
+It can run in two different modes:
+1. 'folder': Monitors a specified directory for new images,
+             reads their GPS data, and saves the results to a CSV file.
+2. 'webcam': Captures a live video stream from the default camera,
+             detects shapes, and displays the results in real-time.
 
-Çalıştırma Örnekleri:
-# Klasör izleme modunda çalıştırmak için:
+Usage Examples:
+# To run in folder monitoring mode:
 python main.py --mod folder
 
-# Canlı webcam modunda çalıştırmak için (varsayılan kamera 0):
+# To run in live webcam mode (default camera 0):
 python main.py --mod webcam
 
-# Belirli bir kamerayı seçmek için (örneğin /dev/video19):
+# To select a specific camera (e.g., /dev/video19):
 python main.py --mod webcam --camera_index 19
 """
 
@@ -27,84 +27,83 @@ import threading
 import csv
 import argparse
 
-# Proje kök dizinini (duzenenmisSerbest) Python'un import yolu'na ekle
+# Add the project root directory to Python's import path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config import CIKTI_CSV, IZLENECEK_KLASOR
 from file_watcher.watcher import resim_isleyici_worker, klasor_izleyici, is_kuyrugu
-from video_processor import video_akisini_baslat
+from video_processor import start_video_stream
 
-def sistem_hazirla():
+def prepare_system():
     """
-    Programın çalışması için gerekli olan klasörleri ve çıktı CSV dosyasını hazırlar.
-    Bu fonksiyon özellikle 'folder' modu için gereklidir.
+    Prepares the necessary directories and the output CSV file for the program.
+    This is especially required for 'folder' mode.
     """
-    # Çıktı CSV dosyasının bulunduğu dizini oluştur
+    # Create the directory for the output CSV file
     os.makedirs(os.path.dirname(CIKTI_CSV), exist_ok=True)
     
-    # İzlenecek resim klasörünü oluştur
+    # Create the image watch folder
     os.makedirs(IZLENECEK_KLASOR, exist_ok=True)
 
-    # Eğer CSV dosyası boşsa veya yoksa, başlık satırını yaz
+    # If the CSV file is empty or doesn't exist, write the header row
     if not os.path.exists(CIKTI_CSV) or os.stat(CIKTI_CSV).st_size == 0:
         with open(CIKTI_CSV, "w", newline="", encoding='utf-8') as f:
-            yazici = csv.writer(f)
-            yazici.writerow(["timestamp", "dosya_adi", "tip", "renk", "enlem", "boylam"])
-        print(f"[BİLGİ] Çıktı dosyası oluşturuldu ve başlık yazıldı: {CIKTI_CSV}")
+            writer = csv.writer(f)
+            writer.writerow(["timestamp", "filename", "type", "color", "latitude", "longitude"])
+        print(f"[INFO] Output file created with header: {CIKTI_CSV}")
 
 def main():
     """
-    Ana fonksiyon: Komut satırı argümanlarını ayrıştırır ve seçilen moda göre
-    ilgili işlemcileri başlatır.
+    Main function: Parses command-line arguments and starts the appropriate processors.
     """
-    # Komut satırı argümanlarını tanımla
+    # Define command-line arguments
     parser = argparse.ArgumentParser(
-        description="Kırmızı Üçgen ve Mavi Altıgen Tespit Sistemi."
+        description="Red Triangle and Blue Hexagon Detection System."
     )
     parser.add_argument(
         '--mod',
         type=str,
         choices=['folder', 'webcam'],
         required=True,
-        help="Çalışma modunu seçin: 'folder' (klasör izleme) veya 'webcam' (canlı video)."
+        help="Choose the operating mode: 'folder' (watch a directory) or 'webcam' (live video)."
     )
     parser.add_argument(
         '--camera_index',
         type=int,
         default=0,
-        help="Webcam modu için kullanılacak kamera indeksi (örn: 0, 1, 19)."
+        help="The camera index to be used for webcam mode (e.g., 0, 1, 19)."
     )
     args = parser.parse_args()
 
     print("="*50)
-    print(f"'{args.mod.upper()}' Modunda Sistem Başlatılıyor...")
+    print(f"Starting System in '{args.mod.upper()}' Mode...")
     print("="*50)
     
     if args.mod == 'folder':
-        # KLASÖR İZLEME MODU
-        sistem_hazirla()
+        # FOLDER WATCHER MODE
+        prepare_system()
         
         worker_thread = threading.Thread(target=resim_isleyici_worker, daemon=True)
         worker_thread.start()
-        print("[BİLGİ] Arka plan resim işleyici (worker) başlatıldı.")
+        print("[INFO] Background image processor (worker) started.")
 
         try:
             klasor_izleyici()
         except KeyboardInterrupt:
-            print("\n[DURDURULUYOR] Kullanıcı tarafından işlem kesildi...")
+            print("\n[STOPPING] User interruption detected...")
             is_kuyrugu.put(None)
             worker_thread.join(timeout=5)
-            print("[KAPATILDI] Program başarıyla sonlandırıldı.")
+            print("[SHUTDOWN] Program terminated successfully.")
         
     elif args.mod == 'webcam':
-        # CANLI VIDEO MODU
-        print(f"[BİLGİ] Kamera indeksi {args.camera_index} kullanılıyor.")
+        # LIVE VIDEO MODE
+        print(f"[INFO] Using camera index {args.camera_index}.")
         try:
-            # Seçilen kamera indeksi ile video akışını başlat
-            video_akisini_baslat(kaynak=args.camera_index)
+            # Start the video stream with the selected camera index
+            start_video_stream(source=args.camera_index)
         except KeyboardInterrupt:
-            print("\n[DURDURULUYOR] Kullanıcı tarafından işlem kesildi...")
-            print("[KAPATILDI] Program başarıyla sonlandırıldı.")
+            print("\n[STOPPING] User interruption detected...")
+            print("[SHUTDOWN] Program terminated successfully.")
 
     print("="*50)
 

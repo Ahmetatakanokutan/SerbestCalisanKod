@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*- 
 
 """
-Bir klasörü sürekli olarak izleyen ve yeni eklenen görüntüleri
-bir iş kuyruğuna ekleyerek arka planda işlenmesini sağlayan modül.
+This module continuously monitors a directory and processes newly added images
+in a background thread.
 """
 
 import os
@@ -13,109 +13,122 @@ import csv
 import cv2
 import sys
 
-# Proje kök dizinini Python yoluna ekle
+# Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import IZLENECEK_KLASOR, CIKTI_CSV, EV_RAKIMI
-from gps.exif import exif_verisi_al, enlem_boylam_rakim_al
-from gps.calculator import piksel_to_gps
+from config import WATCH_FOLDER, OUTPUT_CSV, HOME_ALTITUDE
+from gps.exif import get_exif_data, get_lat_lon_alt
+from gps.calculator import pixel_to_gps
 from shape_detector.detector import SekilTespitEdici
 
-is_kuyrugu = queue.Queue()
-islenen_dosyalar = set()
+# Global variables: a queue for jobs and a set to track processed files
+job_queue = queue.Queue()
+processed_files = set()
 
-def resim_isleyici_worker():
+def image_processing_worker():
     """
-    Kuyruktan resim yollarını alır, şekil tespiti ve GPS hesaplaması yapar,
-    ve sonuçları CSV dosyasına yazar.
+    Picks up image paths from the queue, performs shape detection and GPS calculation,
+    and writes the results to a CSV file. Designed to run in a daemon thread.
     """
-    sekil_tespit_edici = SekilTespitEdici()
+    shape_detector = SekilTespitEdici()
     
     while True:
-        resim_yolu = is_kuyrugu.get()
-        if resim_yolu is None:
+        image_path = job_queue.get()
+        if image_path is None:  # Shutdown signal from the main thread
             break
 
-        print(f"\n[İŞLENİYOR] Dosya: {os.path.basename(resim_yolu)}")
+        print(f"\n[PROCESSING] File: {os.path.basename(image_path)}")
         
         try:
-            exif_verisi = exif_verisi_al(resim_yolu)
-            if not exif_verisi:
-                print(f"[UYARI] EXIF verisi okunamadı veya format desteklenmiyor: {os.path.basename(resim_yolu)}")
+            # 1. Read EXIF data and extract GPS info
+            exif_data = get_exif_data(image_path)
+            if not exif_data:
+                print(f"[WARNING] Could not read EXIF data or format not supported: {os.path.basename(image_path)}")
                 continue
             
-            drone_enlem, drone_boylam, drone_rakim = enlem_boylam_rakim_al(exif_verisi)
-            if drone_enlem is None or drone_boylam is None or drone_rakim is None:
-                print(f"[UYARI] GPS verisi eksik veya okunamadı: {os.path.basename(resim_yolu)}")
+            drone_lat, drone_lon, drone_alt = get_lat_lon_alt(exif_data)
+            if drone_lat is None or drone_lon is None or drone_alt is None:
+                print(f"[WARNING] GPS data is missing or could not be read: {os.path.basename(image_path)}")
                 continue
             
-            ucus_irtifasi = drone_rakim - EV_RAKIMI
-            print(f"  -> GPS: ({drone_enlem:.6f}, {drone_boylam:.6f}), İrtifa: {ucus_irtifasi:.2f}m")
+            # Calculate altitude above ground level
+            flight_altitude = drone_alt - HOME_ALTITUDE
+            print(f"  -> GPS: ({drone_lat:.6f}, {drone_lon:.6f}), Altitude: {flight_altitude:.2f}m")
 
-            resim = cv2.imread(resim_yolu)
-            if resim is None:
-                print(f"[HATA] Görüntü yüklenemedi: {resim_yolu}")
+            # 2. Load the image
+            image = cv2.imread(image_path)
+            if image is None:
+                print(f"[ERROR] Could not load image: {image_path}")
                 continue
             
-            resim_yuksekligi, resim_genisligi, _ = resim.shape
+            image_height, image_width, _ = image.shape
 
-            kirmizi_ucgenler = sekil_tespit_edici.kirmizi_ucgenleri_bul(resim)
-            mavi_altigenler = sekil_tespit_edici.mavi_altigenleri_bul(resim)
-            tum_tespitler = kirmizi_ucgenler + mavi_altigenler
+            # 3. Detect red triangles and blue hexagons
+            red_triangles = shape_detector.kirmizi_ucgenleri_bul(image)
+            blue_hexagons = shape_detector.mavi_altigenleri_bul(image)
+            all_detections = red_triangles + blue_hexagons
             
-            if not tum_tespitler:
-                print("  -> Herhangi bir şekil tespit edilemedi.")
+            if not all_detections:
+                print("  -> No shapes were detected.")
                 continue
             
-            print(f"  -> Tespit edilenler: {len(tum_tespitler)} şekil")
+            print(f"  -> Detections: {len(all_detections)} shapes")
 
-            with open(CIKTI_CSV, "a", newline="", encoding='utf-8') as f:
-                yazici = csv.writer(f)
-                for tespit in tum_tespitler:
-                    merkez_x, merkez_y = tespit['merkez']
+            # 4. Write results to the CSV file
+            with open(OUTPUT_CSV, "a", newline="", encoding='utf-8') as f:
+                writer = csv.writer(f)
+                for detection in all_detections:
+                    center_x, center_y = detection['merkez']
                     
-                    enlem, boylam = piksel_to_gps(
-                        merkez_x, merkez_y, resim_genisligi, resim_yuksekligi,
-                        drone_enlem, drone_boylam, ucus_irtifasi
+                    # Calculate GPS coordinate for the center pixel of the detected shape
+                    latitude, longitude = pixel_to_gps(
+                        center_x, center_y, image_width, image_height,
+                        drone_lat, drone_lon, flight_altitude
                     )
                     
-                    print(f"    -> {tespit['renk'].upper()} {tespit['sekil'].upper()} @ ({merkez_x},{merkez_y}) -> GPS: ({enlem:.7f}, {boylam:.7f})")
+                    print(f"    -> {detection['renk'].upper()} {detection['sekil'].upper()} @ ({center_x},{center_y}) -> GPS: ({latitude:.7f}, {longitude:.7f})")
                     
-                    yazici.writerow([
+                    # Create and write the CSV row
+                    writer.writerow([
                         time.strftime("%Y-%m-%d %H:%M:%S"),
-                        os.path.basename(resim_yolu),
-                        tespit['sekil'],
-                        tespit['renk'],
-                        f"{enlem:.7f}",
-                        f"{boylam:.7f}"
+                        os.path.basename(image_path),
+                        detection['sekil'],
+                        detection['renk'],
+                        f"{latitude:.7f}",
+                        f"{longitude:.7f}"
                     ])
         
         except Exception as e:
-            print(f"[KRİTİK HATA] {os.path.basename(resim_yolu)} işlenirken beklenmedik bir hata oluştu: {e}")
+            print(f"[CRITICAL ERROR] An unexpected error occurred while processing {os.path.basename(image_path)}: {e}")
         
         finally:
-            is_kuyrugu.task_done()
+            # Mark the task in the queue as done
+            job_queue.task_done()
 
-def klasor_izleyici():
+def folder_watcher():
     """
-    Belirtilen klasörü periyodik olarak yeni görüntüler için tarar.
+    Periodically scans the specified directory for new images and adds them
+    to the processing queue.
     """
-    print(f"[BAŞLATILDI] Klasör izleniyor: {os.path.abspath(IZLENECEK_KLASOR)}")
-    if not os.path.isdir(IZLENECEK_KLASOR):
-        print(f"[HATA] İzlenecek klasör bulunamadı: {IZLENECEK_KLASOR}")
+    print(f"[STARTED] Watching folder: {os.path.abspath(WATCH_FOLDER)}")
+    if not os.path.isdir(WATCH_FOLDER):
+        print(f"[ERROR] Watch folder not found: {WATCH_FOLDER}")
+        print("Please check the WATCH_FOLDER path in the 'config.py' file.")
         return
 
     while True:
-        resim_dosyalari = glob.glob(os.path.join(IZLENECEK_KLASOR, "*.jpg")) + \
-                           glob.glob(os.path.join(IZLENECEK_KLASOR, "*.jpeg")) + \
-                           glob.glob(os.path.join(IZLENECEK_KLASOR, "*.png"))
+        # Find all image files with supported formats
+        image_files = glob.glob(os.path.join(WATCH_FOLDER, "*.jpg")) + \
+                      glob.glob(os.path.join(WATCH_FOLDER, "*.jpeg")) + \
+                      glob.glob(os.path.join(WATCH_FOLDER, "*.png"))
         
-        yeni_resimler = [f for f in resim_dosyalari if f not in islenen_dosyalar]
+        # Find new images that have not been processed yet
+        new_images = [f for f in image_files if f not in processed_files]
 
-        if yeni_resimler:
-            for resim_yolu in sorted(yeni_resimler):
-                print(f"[BULUNDU] Yeni resim kuyruğa ekleniyor: {os.path.basename(resim_yolu)}")
-                islenen_dosyalar.add(resim_yolu)
-                is_kuyrugu.put(resim_yolu)
+        if new_images:
+            for image_path in sorted(new_images):
+                print(f"[FOUND] Adding new image to queue: {os.path.basename(image_path)}")
+                processed_files.add(image_path)
+                job_queue.put(image_path)
             
-        time.sleep(5)
+        time.sleep(5) # Check the folder every 5 seconds

@@ -1,71 +1,76 @@
-
 # -*- coding: utf-8 -*-
 
 """
-Piksel koordinatlarını GPS koordinatlarına dönüştüren matematiksel fonksiyonlar.
+Mathematical functions for converting pixel coordinates to GPS coordinates.
 """
 
 import numpy as np
 import cv2
 from math import tan, radians, cos, pi
 
-# Proje config dosyasından gerekli sabitleri import et
+# Import necessary constants from the project config file
 from config import (
-    HFOV_DERECE, PITCH_DERECE, ROLL_DERECE, YAW_DERECE, DUNYA_YARICAPI
+    HFOV_DEGREES, PITCH_DEGREES, ROLL_DEGREES, YAW_DEGREES, EARTH_RADIUS
 )
 
-def piksel_to_gps(x, y, resim_genisligi, resim_yuksekligi, drone_enlem, drone_boylam, ucus_irtifasi):
+def pixel_to_gps(x, y, image_width, image_height, drone_latitude, drone_longitude, flight_altitude):
     """
-    Görüntüdeki bir pikselin koordinatını gerçek dünya GPS koordinatına çevirir.
+    Converts a pixel coordinate within an image to a real-world GPS coordinate.
     
     Args:
-        x (int): Pikselin x koordinatı.
-        y (int): Pikselin y koordinatı.
-        resim_genisligi (int): Görüntünün toplam genişliği.
-        resim_yuksekligi (int): Görüntünün toplam yüksekliği.
-        drone_enlem (float): Drone'un anlık enlemi (ondalık derece).
-        drone_boylam (float): Drone'un anlık boylamı (ondalık derece).
-        ucus_irtifasi (float): Drone'un yerden yüksekliği (metre).
+        x (int): The x-coordinate of the pixel.
+        y (int): The y-coordinate of the pixel.
+        image_width (int): The total width of the image.
+        image_height (int): The total height of the image.
+        drone_latitude (float): The current latitude of the drone in decimal degrees.
+        drone_longitude (float): The current longitude of the drone in decimal degrees.
+        flight_altitude (float): The drone's altitude above ground level in meters.
 
     Returns:
-        tuple: Hesaplanan (enlem, boylam) veya hata durumunda orijinal (drone_enlem, drone_boylam).
+        tuple: The calculated (latitude, longitude), or the original drone coordinates on error.
     """
-    # Kamera içsel parametrelerini hesapla
-    hfov = radians(HFOV_DERECE)
-    vfov = hfov * (resim_yuksekligi / resim_genisligi)
+    # Calculate camera intrinsic parameters
+    hfov = radians(HFOV_DEGREES)
+    vfov = hfov * (image_height / image_width)
 
-    fx = resim_genisligi / (2 * tan(hfov / 2))
-    fy = resim_yuksekligi / (2 * tan(vfov / 2))
-    cx = resim_genisligi / 2
-    cy = resim_yuksekligi / 2
+    fx = image_width / (2 * tan(hfov / 2))
+    fy = image_height / (2 * tan(vfov / 2))
+    cx = image_width / 2
+    cy = image_height / 2
 
-    # İçsel parametre matrisinin tersi (K_inv)
+    # Inverse of the intrinsic parameter matrix (K_inv)
     K_inv = np.linalg.inv(np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]]))
     
-    # 2D piksel noktasını 3D ışına dönüştür
-    piksel_vektoru = np.array([x, y, 1.0])
-    kamera_koordinatinda_isin = K_inv @ piksel_vektoru
-    kamera_koordinatinda_isin /= np.linalg.norm(kamera_koordinatinda_isin)
+    # Convert 2D pixel point to a 3D ray
+    pixel_vector = np.array([x, y, 1.0])
+    ray_in_camera_coords = K_inv @ pixel_vector
+    ray_in_camera_coords /= np.linalg.norm(ray_in_camera_coords)
 
-    # Dışsal parametreler: Drone'un yönelimi (Euler açıları)
-    R_matrix = cv2.Rodrigues(np.array([radians(PITCH_DERECE), radians(ROLL_DERECE), radians(YAW_DERECE)]))[0]
+    # Extrinsic parameters: Drone's orientation (Euler angles)
+    R_matrix = cv2.Rodrigues(np.array([radians(PITCH_DEGREES), radians(ROLL_DEGREES), radians(YAW_DEGREES)]))[0]
     
-    # Işını kamera koordinat sisteminden dünya koordinat sistemine dönüştür
-    dunya_koordinatinda_isin = R_matrix @ kamera_koordinatinda_isin
+    # Convert the ray from camera coordinate system to world coordinate system
+    ray_in_world_coords = R_matrix @ ray_in_camera_coords
     
-    if dunya_koordinatinda_isin[2] <= 1e-6:
-        return drone_enlem, drone_boylam
+    # Assuming Z-axis points down towards the ground.
+    # If the ray points up or is parallel to the ground, there's no intersection.
+    if ray_in_world_coords[2] <= 1e-6:
+        return drone_latitude, drone_longitude
 
-    olcek = ucus_irtifasi / dunya_koordinatinda_isin[2]
-    yer_noktasi = dunya_koordinatinda_isin * olcek
+    # Calculate the intersection of the ray with the ground plane
+    scale = flight_altitude / ray_in_world_coords[2]
+    ground_point = ray_in_world_coords * scale
 
-    offset_kuzey = yer_noktasi[1]
-    offset_dogu = yer_noktasi[0]
+    # Calculate offsets in the world coordinate system (north and east)
+    offset_north = ground_point[1]
+    offset_east = ground_point[0]
 
-    dlat = offset_kuzey / DUNYA_YARICAPI * (180 / pi)
-    dlon = offset_dogu / (DUNYA_YARICAPI * cos(radians(drone_enlem))) * (180 / pi)
+    # Convert offsets to latitude and longitude differences
+    dlat = offset_north / EARTH_RADIUS * (180 / pi)
+    dlon = offset_east / (EARTH_RADIUS * cos(radians(drone_latitude))) * (180 / pi)
 
-    yeni_enlem = drone_enlem + dlat
-    yeni_boylam = drone_boylam + dlon
+    # Calculate the new GPS coordinates
+    new_latitude = drone_latitude + dlat
+    new_longitude = drone_longitude + dlon
 
-    return yeni_enlem, yeni_boylam
+    return new_latitude, new_longitude

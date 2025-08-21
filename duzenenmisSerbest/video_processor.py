@@ -1,85 +1,90 @@
-# -*- coding: utf-8 -*-\n\n"""
-Canlı video akışını (webcam veya video dosyası) işleyen modül.\nHer bir karede kırmızı üçgen ve mavi altıgen tespiti yapar ve\nsonuçları gerçek zamanlı olarak ekranda gösterir.\n"""
+# -*- coding: utf-8 -*-
+
+"""
+This module handles the live video stream (from a webcam or video file).
+It detects red triangles and blue hexagons in each frame and displays
+the results in real-time.
+"""
 
 import cv2
 import sys
 import os
 
-# Proje kök dizinini Python yoluna ekle
+# Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shape_detector.detector import SekilTespitEdici
 
-def sonuclari_gorsellestir(frame, tespitler):
+def visualize_results(frame, detections):
     """
-    Tespit edilen şekilleri video karesi üzerine çizer.
+    Draws the detected shapes onto the video frame.
     """
-    if not tespitler:
+    if not detections:
         return frame
 
-    for tespit in tespitler:
-        merkez = tespit['merkez']
-        renk_str = tespit['renk']
-        sekil_str = tespit['sekil']
+    for detection in detections:
+        center = detection['merkez']
+        color_str = detection['renk']
+        shape_str = detection['sekil']
         
-        # Tespit edilen renge göre çizim rengi belirle (BGR formatında)
-        cizim_rengi = (255, 0, 0) if renk_str == 'mavi' else (0, 0, 255)
+        # Determine drawing color based on detected color (BGR format)
+        draw_color = (255, 0, 0) if color_str == 'mavi' else (0, 0, 255)
 
-        # Şeklin merkezine bir daire çiz
-        cv2.circle(frame, merkez, 10, cizim_rengi, 2)
+        # Draw a circle at the center of the shape
+        cv2.circle(frame, center, 10, draw_color, 2)
         
-        # Bilgi metni ekle
-        metin = f"{renk_str.upper()} {sekil_str.upper()}"
-        cv2.putText(frame, metin, (merkez[0] - 40, merkez[1] - 15), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, cizim_rengi, 2)
+        # Add an info text
+        text = f"{color_str.upper()} {shape_str.upper()}"
+        cv2.putText(frame, text, (center[0] - 40, center[1] - 15), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, draw_color, 2)
     
     return frame
 
-def video_akisini_baslat(kaynak=0):
+def start_video_stream(source=0):
     """
-    Belirtilen kaynaktan video akışını başlatır ve işlemeye başlar.
+    Initializes and processes the video stream from the specified source.
     
     Args:
-        kaynak (int or str): Kamera indeksi (örn: 0) veya video dosyasının yolu.
+        source (int or str): The camera index (e.g., 0) or the path to a video file.
     """
-    # Linux sistemlerde daha kararlı çalışması için V4L2 backend'ini özellikle belirtiyoruz.
-    cap = cv2.VideoCapture(kaynak, cv2.CAP_V4L2)
+    # Explicitly specify the V4L2 backend for better stability on Linux
+    cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
     
     if not cap.isOpened():
-        print(f"[HATA] Video kaynağı açılamadı: {kaynak}")
-        print("Lütfen kamera bağlantınızı veya dosya yolunu kontrol edin.")
+        print(f"[ERROR] Could not open video source: {source}")
+        print("Please check your camera connection or the file path.")
         return
 
-    print("[BİLGİ] Video akışı başlatıldı. Çıkmak için 'q' tuşuna basın.")
+    print("[INFO] Video stream started. Press 'q' to exit.")
     
-    sekil_tespit_edici = SekilTespitEdici()
+    shape_detector = SekilTespitEdici()
 
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("[BİLGİ] Video akışı sona erdi.")
+            print("[INFO] Video stream ended.")
             break
 
-        # Şekilleri tespit et
-        kirmizi_ucgenler = sekil_tespit_edici.kirmizi_ucgenleri_bul(frame)
-        mavi_altigenler = sekil_tespit_edici.mavi_altigenleri_bul(frame)
-        tum_tespitler = kirmizi_ucgenler + mavi_altigenler
+        # Detect shapes
+        red_triangles = shape_detector.kirmizi_ucgenleri_bul(frame)
+        blue_hexagons = shape_detector.mavi_altigenleri_bul(frame)
+        all_detections = red_triangles + blue_hexagons
 
-        # Konsola anlık bilgi yazdır (isteğe bağlı)
-        if tum_tespitler:
-            print(f"\rTespit edilenler: {len(tum_tespitler)} adet", end="")
+        # Print info to console (optional)
+        if all_detections:
+            print(f"\rDetections: {len(all_detections)}", end="")
 
-        # Sonuçları görselleştir
-        gorsellestirilmis_frame = sonuclari_gorsellestir(frame, tum_tespitler)
+        # Visualize the results
+        visualized_frame = visualize_results(frame, all_detections)
 
-        # İşlenmiş kareyi ekranda göster
-        cv2.imshow("Canli Tespit Sistemi", gorsellestirilmis_frame)
+        # Display the processed frame
+        cv2.imshow("Live Detection System", visualized_frame)
 
-        # 'q' tuşuna basıldığında döngüden çık
+        # Exit the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    # Kaynakları serbest bırak
+    # Release resources
     cap.release()
     cv2.destroyAllWindows()
-    print("\n[BİLGİ] Video akışı kapatıldı.")
+    print("\n[INFO] Video stream closed.")

@@ -1,37 +1,33 @@
-
 # -*- coding: utf-8 -*-
 
 """
-Görüntü dosyalarından EXIF meta verilerini okumak için yardımcı fonksiyonlar.
-Bu modül, GPS verilerini çıkarmak için 'piexif' kütüphanesini kullanır.
+This module contains helper functions for reading EXIF metadata from image files.
+It uses the 'piexif' library to extract GPS data.
 """
 
 import piexif
 
-def exif_verisi_al(resim_yolu):
+def get_exif_data(image_path):
     """
-    Bir resim dosyasından EXIF verilerini çeker.
+    Extracts EXIF data from an image file.
     Args:
-        resim_yolu (str): Görüntü dosyasının yolu.
+        image_path (str): The path to the image file.
     Returns:
-        dict: EXIF verilerini içeren sözlük veya hata durumunda None.
+        dict: A dictionary containing the EXIF data, or None on error.
     """
     try:
-        exif_dict = piexif.load(resim_yolu)
+        exif_dict = piexif.load(image_path)
         return exif_dict
-    except Exception as e:
-        # piexif'in bazen 'ValueError: Given data isn't JPEG.' hatası vermesi yaygındır.
-        # Bu durumu ve diğer hataları yakalıyoruz.
-        # print(f"[HATA] EXIF verisi okunamadı: {resim_yolu} - {e}")
+    except Exception:
         return None
 
-def enlem_boylam_rakim_al(exif_dict):
+def get_lat_lon_alt(exif_dict):
     """
-    EXIF sözlüğünden GPS enlem, boylam ve rakım bilgilerini ayrıştırır.
+    Parses GPS latitude, longitude, and altitude from an EXIF dictionary.
     Args:
-        exif_dict (dict): piexif tarafından döndürülen EXIF sözlüğü.
+        exif_dict (dict): The EXIF dictionary returned by piexif.
     Returns:
-        tuple: (enlem, boylam, rakım) veya veri yoksa (None, None, None).
+        tuple: (latitude, longitude, altitude) or (None, None, None) if not found.
     """
     if not exif_dict or 'GPS' not in exif_dict:
         return None, None, None
@@ -39,7 +35,7 @@ def enlem_boylam_rakim_al(exif_dict):
     gps_ifd = exif_dict.get('GPS', {})
     
     def exif_gps_to_dec(gps_coords, gps_ref):
-        """EXIF GPS formatını ondalık dereceye çevirir."""
+        """Converts EXIF GPS format to decimal degrees."""
         if not gps_coords or not gps_ref:
             return None
         try:
@@ -52,16 +48,16 @@ def enlem_boylam_rakim_al(exif_dict):
         except (ValueError, ZeroDivisionError, TypeError, IndexError):
             return None
 
-    enlem = exif_gps_to_dec(
+    latitude = exif_gps_to_dec(
         gps_ifd.get(piexif.GPSIFD.GPSLatitude), 
         gps_ifd.get(piexif.GPSIFD.GPSLatitudeRef)
     )
-    boylam = exif_gps_to_dec(
+    longitude = exif_gps_to_dec(
         gps_ifd.get(piexif.GPSIFD.GPSLongitude), 
         gps_ifd.get(piexif.GPSIFD.GPSLongitudeRef)
     )
     
-    rakim_verisi = gps_ifd.get(piexif.GPSIFD.GPSAltitude)
-    rakim = (rakim_verisi[0] / rakim_verisi[1]) if rakim_verisi and rakim_verisi[1] != 0 else None
+    altitude_data = gps_ifd.get(piexif.GPSIFD.GPSAltitude)
+    altitude = (altitude_data[0] / altitude_data[1]) if altitude_data and altitude_data[1] != 0 else None
     
-    return enlem, boylam, rakim
+    return latitude, longitude, altitude

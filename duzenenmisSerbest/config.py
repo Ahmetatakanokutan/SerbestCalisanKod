@@ -1,51 +1,48 @@
-
 # -*- coding: utf-8 -*-
 
 """
-Projenin tüm konfigürasyon parametreleri ve sabitleri bu dosyada yer alır.
+All configuration parameters and constants for the project are located in this file.
 """
 
 import numpy as np
 import os
 
-# ==== DOSYA YOLLARI ====
-# Bu dosyanın bulunduğu dizini alarak başla
-# duzenenmisSerbest/
+# ==== FILE PATHS ====
+# Dynamically create paths based on the main project directory
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
-# Projenin kök dizinine çık (SerbestCalisanKod/)
 BASE_DIR = os.path.dirname(CONFIG_DIR)
 
-IZLENECEK_KLASOR = os.path.join(BASE_DIR, "files", "images")
-CIKTI_CSV = os.path.join(BASE_DIR, "files", "detections", "tespitler.csv")
+WATCH_FOLDER = os.path.join(BASE_DIR, "files", "images")
+OUTPUT_CSV = os.path.join(BASE_DIR, "files", "detections", "detections.csv")
 
 
-# ==== KAMERA VE GPS PARAMETRELERİ ====
-HFOV_DERECE = 78.0  # Yatay Görüş Açısı (Horizontal Field of View)
-EV_RAKIMI = 72.0    # Drone'un kalktığı yerin deniz seviyesinden yüksekliği (metre)
-YAW_DERECE = 0.0
-PITCH_DERECE = 0.0
-ROLL_DERECE = 0.0
-DUNYA_YARICAPI = 6378137  # Metre
+# ==== CAMERA AND GPS PARAMETERS ====
+HFOV_DEGREES = 78.0      # Horizontal Field of View
+HOME_ALTITUDE = 72.0     # Altitude of the drone's home point in meters
+YAW_DEGREES = 0.0
+PITCH_DEGREES = 0.0
+ROLL_DEGREES = 0.0
+EARTH_RADIUS = 6378137   # In meters
 
-# ==== RENK TESPİT PARAMETRELERİ (HSV RENK UZAYI) ====
-# Kırmızı için iki farklı aralık (HSV'de kırmızı hem 0 hem 180 etrafında bulunur)
-KIRMIZI_ALT_1 = np.array([0, 120, 70])
-KIRMIZI_UST_1 = np.array([10, 255, 255])
-KIRMIZI_ALT_2 = np.array([170, 120, 70])
-KIRMIZI_UST_2 = np.array([180, 255, 255])
+# ==== COLOR DETECTION PARAMETERS (HSV COLOR SPACE) ====
+# Two ranges for red (as it wraps around in HSV)
+RED_LOWER_1 = np.array([0, 120, 70])
+RED_UPPER_1 = np.array([10, 255, 255])
+RED_LOWER_2 = np.array([170, 120, 70])
+RED_UPPER_2 = np.array([180, 255, 255])
 
-# Mavi için aralık
-MAVI_ALT = np.array([100, 150, 50])
-MAVI_UST = np.array([140, 255, 255])
+# Range for blue
+BLUE_LOWER = np.array([100, 150, 50])
+BLUE_UPPER = np.array([140, 255, 255])
 
-# ==== GÖRÜNTÜ İŞLEME PARAMETRELERİ ====
-# Şekil tespiti için kontur alan eşikleri
-MIN_UCGEN_ALANI = 100
-MIN_ALTIGEN_ALANI = 150
+# ==== IMAGE PROCESSING PARAMETERS ====
+# Contour area thresholds for shape detection
+MIN_TRIANGLE_AREA = 100
+MIN_HEXAGON_AREA = 150
 
-# Kontur yaklaştırma (approximation) için epsilon değerleri
-UCGEN_EPSILON_FAKTORU = 0.04
-ALTIGEN_EPSILON_FAKTORU = 0.03
+# Epsilon factors for contour approximation
+TRIANGLE_EPSILON_FACTOR = 0.04
+HEXAGON_EPSILON_FACTOR = 0.03
 
-# Morfolojik operasyonlar için çekirdek (kernel) boyutu
-MORFOLOJIK_CEKIRDEK = np.ones((5, 5), np.uint8)
+# Kernel size for morphological operations
+MORPHOLOGICAL_KERNEL = np.ones((5, 5), np.uint8)
