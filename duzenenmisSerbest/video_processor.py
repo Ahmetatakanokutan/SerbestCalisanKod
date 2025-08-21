@@ -1,14 +1,16 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*- 
 
 """
 This module handles the live video stream (from a webcam or video file).
 It detects red triangles and blue hexagons in each frame and displays
-the results in real-time.
+the results in real-time. This version uses GStreamer for more robust
+camera handling on Linux systems.
 """
 
 import cv2
 import sys
 import os
+import time
 
 # Add the project root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,32 +29,31 @@ def visualize_results(frame, detections):
         color_str = detection['renk']
         shape_str = detection['sekil']
         
-        # Determine drawing color based on detected color (BGR format)
         draw_color = (255, 0, 0) if color_str == 'mavi' else (0, 0, 255)
 
-        # Draw a circle at the center of the shape
         cv2.circle(frame, center, 10, draw_color, 2)
         
-        # Add an info text
         text = f"{color_str.upper()} {shape_str.upper()}"
         cv2.putText(frame, text, (center[0] - 40, center[1] - 15), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, draw_color, 2)
     
     return frame
 
-def start_video_stream(source=0):
+def start_video_stream(pipeline):
     """
-    Initializes and processes the video stream from the specified source.
+    Initializes and processes the video stream using a provided GStreamer pipeline.
     
     Args:
-        source (int or str): The camera index (e.g., 0) or the path to a video file.
+        pipeline (str): The full GStreamer pipeline string.
     """
-    # Explicitly specify the V4L2 backend for better stability on Linux
-    cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
+    print(f"[INFO] Using GStreamer pipeline: {pipeline}")
+
+    # Use CAP_GSTREAMER to tell OpenCV how to interpret the pipeline string
+    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
     
     if not cap.isOpened():
-        print(f"[ERROR] Could not open video source: {source}")
-        print("Please check your camera connection or the file path.")
+        print(f"[ERROR] Could not open video source with the provided GStreamer pipeline.")
+        print("Please ensure GStreamer plugins are installed and the pipeline is correct.")
         return
 
     print("[INFO] Video stream started. Press 'q' to exit.")
@@ -62,17 +63,14 @@ def start_video_stream(source=0):
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("[INFO] Video stream ended.")
-            break
+            print("[WARNING] Failed to grab frame. The stream may have ended or there is a pipeline issue.")
+            time.sleep(0.5)
+            continue
 
         # Detect shapes
         red_triangles = shape_detector.kirmizi_ucgenleri_bul(frame)
         blue_hexagons = shape_detector.mavi_altigenleri_bul(frame)
         all_detections = red_triangles + blue_hexagons
-
-        # Print info to console (optional)
-        if all_detections:
-            print(f"\rDetections: {len(all_detections)}", end="")
 
         # Visualize the results
         visualized_frame = visualize_results(frame, all_detections)

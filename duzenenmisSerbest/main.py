@@ -7,18 +7,18 @@ This script is the main entry point that starts the entire system.
 It can run in two different modes:
 1. 'folder': Monitors a specified directory for new images,
              reads their GPS data, and saves the results to a CSV file.
-2. 'webcam': Captures a live video stream from the default camera,
+2. 'webcam': Captures a live video stream from a local camera or an RTSP network stream,
              detects shapes, and displays the results in real-time.
 
 Usage Examples:
 # To run in folder monitoring mode:
 python main.py --mod folder
 
-# To run in live webcam mode (default camera 0):
-python main.py --mod webcam
+# To run with a local camera (e.g., /dev/video0):
+python main.py --mod webcam --camera_index 0
 
-# To select a specific camera (e.g., /dev/video19):
-python main.py --mod webcam --camera_index 19
+# To run with an RTSP network stream:
+python main.py --mod webcam --rtsp_url "rtsp://192.168.144.25:8554/main.264"
 """
 
 import os
@@ -30,7 +30,6 @@ import argparse
 # Add the project root directory to Python's import path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import the new English variable names from the config file
 from config import OUTPUT_CSV, WATCH_FOLDER
 from file_watcher.watcher import image_processing_worker, folder_watcher, job_queue
 from video_processor import start_video_stream
@@ -40,24 +39,46 @@ def prepare_system():
     Prepares the necessary directories and the output CSV file for the program.
     This is especially required for 'folder' mode.
     """
-    # Create the directory for the output CSV file
     os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
-    
-    # Create the image watch folder
     os.makedirs(WATCH_FOLDER, exist_ok=True)
 
-    # If the CSV file is empty or doesn't exist, write the header row
     if not os.path.exists(OUTPUT_CSV) or os.stat(OUTPUT_CSV).st_size == 0:
         with open(OUTPUT_CSV, "w", newline="", encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(["timestamp", "filename", "type", "color", "latitude", "longitude"])
         print(f"[INFO] Output file created with header: {OUTPUT_CSV}")
 
+def create_gstreamer_pipeline(camera_index=0, width=1280, height=720, framerate=30):
+    """
+    Creates a GStreamer pipeline string for capturing video from a V4L2 device.
+    """
+    return (
+        f"v4l2src device=/dev/video{camera_index} ! "
+        f"video/x-raw, width={width}, height={height}, framerate={framerate}/1 ! "
+        "videoconvert ! "
+        "video/x-raw, format=BGR ! "
+        "appsink"
+    )
+
+def create_rtsp_pipeline(url):
+    """
+    Creates a GStreamer pipeline string for capturing video from an RTSP stream.
+    This is based on the user-provided working pipeline.
+    """
+    return (
+        f"rtspsrc location={url} latency=41 udp-reconnect=1 timeout=0 do-retransmission=false ! "
+        f"application/x-rtp ! "
+        f"decodebin3 ! "
+        f"queue max-size-buffers=1 leaky=2 ! "
+        f"videoconvert ! "
+        f"video/x-raw,format=BGR ! "
+        f"appsink sync=false"
+    )
+
 def main():
     """
     Main function: Parses command-line arguments and starts the appropriate processors.
     """
-    # Define command-line arguments
     parser = argparse.ArgumentParser(
         description="Red Triangle and Blue Hexagon Detection System."
     )
@@ -66,13 +87,19 @@ def main():
         type=str,
         choices=['folder', 'webcam'],
         required=True,
-        help="Choose the operating mode: 'folder' (watch a directory) or 'webcam' (live video)."
+        help="Choose the operating mode: 'folder' or 'webcam'."
     )
     parser.add_argument(
         '--camera_index',
         type=int,
         default=0,
-        help="The camera index to be used for webcam mode (e.g., 0, 1, 19)."
+        help="The camera index for local webcam mode (e.g., 0, 19)."
+    )
+    parser.add_argument(
+        '--rtsp_url',
+        type=str,
+        default=None,
+        help="URL of the RTSP stream to use instead of a local camera."
     )
     args = parser.parse_args()
 
@@ -81,13 +108,10 @@ def main():
     print("="*50)
     
     if args.mod == 'folder':
-        # FOLDER WATCHER MODE
         prepare_system()
-        
         worker_thread = threading.Thread(target=image_processing_worker, daemon=True)
         worker_thread.start()
         print("[INFO] Background image processor (worker) started.")
-
         try:
             folder_watcher()
         except KeyboardInterrupt:
@@ -97,11 +121,16 @@ def main():
             print("[SHUTDOWN] Program terminated successfully.")
         
     elif args.mod == 'webcam':
-        # LIVE VIDEO MODE
-        print(f"[INFO] Using camera index {args.camera_index}.")
+        pipeline = None
+        if args.rtsp_url:
+            print(f"[INFO] Using RTSP stream: {args.rtsp_url}")
+            pipeline = create_rtsp_pipeline(args.rtsp_url)
+        else:
+            print(f"[INFO] Using local camera index: {args.camera_index}")
+            pipeline = create_gstreamer_pipeline(camera_index=args.camera_index)
+        
         try:
-            # Start the video stream with the selected camera index
-            start_video_stream(source=args.camera_index)
+            start_video_stream(pipeline=pipeline)
         except KeyboardInterrupt:
             print("\n[STOPPING] User interruption detected...")
             print("[SHUTDOWN] Program terminated successfully.")
