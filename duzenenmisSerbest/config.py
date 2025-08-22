@@ -25,20 +25,20 @@ ROLL_DEGREES = 0.0
 EARTH_RADIUS = 6378137   # In meters
 
 # ==== COLOR DETECTION PARAMETERS (HSV COLOR SPACE) ====
-# Two ranges for red (as it wraps around in HSV)
-RED_LOWER_1 = np.array([0, 120, 70])
-RED_UPPER_1 = np.array([10, 255, 255])
-RED_LOWER_2 = np.array([170, 120, 70])
+# Two ranges for red (as it wraps around in HSV) - More restrictive
+RED_LOWER_1 = np.array([0, 150, 100])
+RED_UPPER_1 = np.array([8, 255, 255])
+RED_LOWER_2 = np.array([172, 150, 100])
 RED_UPPER_2 = np.array([180, 255, 255])
 
-# Range for blue
-BLUE_LOWER = np.array([100, 150, 50])
-BLUE_UPPER = np.array([140, 255, 255])
+# Range for blue - More restrictive
+BLUE_LOWER = np.array([100, 180, 80])
+BLUE_UPPER = np.array([128, 255, 255])
 
 # ==== IMAGE PROCESSING PARAMETERS ====
 # Contour area thresholds for shape detection
-MIN_TRIANGLE_AREA = 100
-MIN_HEXAGON_AREA = 150
+MIN_TRIANGLE_AREA = 120
+MIN_HEXAGON_AREA = 180
 
 # Epsilon factors for contour approximation
 TRIANGLE_EPSILON_FACTOR = 0.04
@@ -46,3 +46,11 @@ HEXAGON_EPSILON_FACTOR = 0.03
 
 # Kernel size for morphological operations
 MORPHOLOGICAL_KERNEL = np.ones((5, 5), np.uint8)
+
+# ==== SHAPE VALIDATION PARAMETERS ====
+# Minimum solidity (ratio of contour area to its convex hull area)
+MIN_SOLIDITY = 0.90
+
+# Aspect ratio range for the bounding box of the shape
+MIN_ASPECT_RATIO = 0.75
+MAX_ASPECT_RATIO = 1.25
