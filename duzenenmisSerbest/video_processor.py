@@ -116,11 +116,10 @@ def start_video_stream(pipeline):
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-    
-finally:
-        # Release resources
-        if csv_file:
-            csv_file.close()
-        cap.release()
-        cv2.destroyAllWindows()
-        print("\n[INFO] Video stream and resources closed.")
+    finally:
+            # Release resources
+            if csv_file:
+                csv_file.close()
+            cap.release()
+            cv2.destroyAllWindows()
+            print("\n[INFO] Video stream and resources closed.")
